@@ -6,4 +6,4 @@ Porting to ESP8266 only
 
 You need two libraries : 
   * Adafruit_PWMServoDriver : https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library
-  * arduinoWebSockets : https://github.com/Links2004/arduinoWebSockets
+  * ESPAsyncTCP and  ESPAsyncWebServer

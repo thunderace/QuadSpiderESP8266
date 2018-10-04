@@ -156,9 +156,9 @@ void quad_setup()
   //initialize servos
  // servo_attach();
   Serial.println("Servos initialized");
-  Serial.println("Robot initialization Complete");
   sit();
   b_init();
+  Serial.println("Robot initialization Complete");
 }
 
 

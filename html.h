@@ -43,7 +43,14 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 <script>
 var websock;
 function start() {
-  websock = new WebSocket('ws://' + window.location.hostname + ':81/');
+  var protocol = "ws://"; 
+  if (window.location.protocol === "https:") {
+    protocol = "wss://";
+  }
+  var wsUri =protocol+ window.location.hostname + "/ws";
+  //var wsUri =protocol+ window.location.hostname + ":81/"; 
+  websock = new WebSocket(wsUri);
+  //websock = new WebSocket('ws://' + window.location.hostname + ':81/');
   websock.onopen = function(evt) { console.log('websock open'); };
   websock.onclose = function(evt) { console.log('websock close'); };
   websock.onerror = function(evt) { console.log(evt); };

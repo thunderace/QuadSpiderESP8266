@@ -1,8 +1,9 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h> 
-#include <ESP8266WebServer.h>
-#include <ESP8266WiFiMulti.h>
-#include <WebSocketsServer.h>
+//#include <ESP8266WebServer.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+//#include <WebSocketsServer.h>
 #include <Hash.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
@@ -11,9 +12,12 @@
 
 const int led = 13;
 MDNSResponder mdns;
-ESP8266WiFiMulti WiFiMulti;
+/*
 ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
+*/
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
 #if MAX_SSID == 1
 const char *ssid[MAX_SSID] = {_SSID1_};
 const char *password[MAX_SSID] = { _WIFI_PASSWORD1_};
@@ -31,7 +35,51 @@ const char *password[MAX_SSID] = { _WIFI_PASSWORD1_, _WIFI_PASSWORD2_, _WIFI_PAS
 
 //=================================================================================
 
+void ICACHE_FLASH_ATTR onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_ERROR) {
+    Serial.printf("[ WARN ] WebSocket[%s][%u] error(%u): %s\r\n", server->url(), client->id(), *((uint16_t*)arg), (char*)data);
+    return;
+  }
+  if (type == WS_EVT_DATA) {
+    AwsFrameInfo * info = (AwsFrameInfo*)arg;
+    String msg = "";
+    if (info->final && info->index == 0 && info->len == len) {
+      //the whole message is in a single frame and we got all of it's data
+      if(info->opcode == WS_TEXT){
+        for(size_t i=0; i < info->len; i++) {
+          msg += (char) data[i];
+        }
+        Serial.println(msg);
+      } else {
+        char buff[3];
+        for(size_t i=0; i < info->len; i++) {
+          sprintf(buff, "%02x ", (uint8_t) data[i]);
+          msg += buff ;
+        }
+      }
+    }
+  }
+}
 
+void ICACHE_FLASH_ATTR setupWebServer() {
+  // Start WebSocket Plug-in and handle incoming message on "onWsEvent" function
+  server.addHandler(&ws);
+  ws.onEvent(onWsEvent);
+  // Handle what happens when requested web file couldn't be found
+  server.onNotFound([](AsyncWebServerRequest * request) {
+    AsyncWebServerResponse * response = request->beginResponse(404, "text/plain", "Not found");
+    request->send(response);
+  });
+    
+  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send_P(200, "text/html", INDEX_HTML);
+  });
+  server.rewrite("/", "/index.html");
+  // Start Web Server
+  server.begin();
+}
+
+/*
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length)
 {
   //Serial.printf("webSocketEvent(%d, %d, ...)\r\n", num, type);
@@ -45,8 +93,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       }
       break;
     case WStype_TEXT:
+      Serial.printf("%s\r\n", payload);
       quad_action_cmd(payload);
-      //Serial.printf("%s\r\n", payload);
       digitalWrite(LED_BUILTIN, LOW);
       // send data to all connected clients
       webSocket.broadcastTXT(payload, length);
@@ -60,28 +108,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
       break;
   }
 }
-
-void handleRoot()
-{
-  server.send_P(200, "text/html", INDEX_HTML);
-}
-
-void handleNotFound()
-{
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET)?"GET":"POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-  for (uint8_t i=0; i<server.args(); i++){
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-  }
-  server.send(404, "text/plain", message);
-}
-
+*/
 void enableOTA() {
   // Port defaults to 8266
   // ArduinoOTA.setPort(8266);
@@ -158,8 +185,6 @@ bool connectWifi() {
         Serial.println(" failed");
         return false;
       } else {
-        Serial.print(" connected : ");
-        Serial.println(WiFi.localIP());
         return true;
       }
 		}
@@ -205,12 +230,13 @@ void setup() {
     mdns.addService("ws", "tcp", 81);
   }
 #endif  
-  server.on("/", handleRoot);
-  server.onNotFound(handleNotFound);
+  setupWebServer();
+/*
   server.begin();
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  quad_setup();
+*/  
+  //quad_setup();
 }
 
 void loop() {
@@ -224,8 +250,8 @@ void loop() {
     }
   } else {
     ArduinoOTA.handle();
-    server.handleClient();
-    webSocket.loop();
-    quad_loop();
+    //server.handleClient();
+    //webSocket.loop();
+    //quad_loop();
   }
 }
