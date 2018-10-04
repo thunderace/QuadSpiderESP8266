@@ -5,219 +5,32 @@
 #include <WebSocketsServer.h>
 #include <Hash.h>
 #include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
 #include "QuadSpiderAction.h"
-/* Set these to your desired credentials. */
-const char *ssid = "SpiderRobo";
-const char *password = "12345678";
+#include "html.h"
 
 const int led = 13;
 MDNSResponder mdns;
 ESP8266WiFiMulti WiFiMulti;
 ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
+#if MAX_SSID == 1
+const char *ssid[MAX_SSID] = {_SSID1_};
+const char *password[MAX_SSID] = { _WIFI_PASSWORD1_};
+#endif
+
+#if MAX_SSID == 2
+const char *ssid[MAX_SSID] = {_SSID1_, _SSID2_};
+const char *password[MAX_SSID] = { _WIFI_PASSWORD1_, _WIFI_PASSWORD2_};
+#endif
+
+#if MAX_SSID == 3
+const char *ssid[MAX_SSID] = {_SSID1_, _SSID2_, _SSID3_};
+const char *password[MAX_SSID] = { _WIFI_PASSWORD1_, _WIFI_PASSWORD2_, _WIFI_PASSWORD3_};
+#endif
 
 //=================================================================================
 
-static const char PROGMEM INDEX_HTML[] = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-<meta name = "viewport" content = "width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0">
-<title>ESP8266 Spider Robot</title>
-<style>
-"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }"
-#JD {
-  text-align: center;
-}
-#JD {
-  text-align: center;
-  font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-  font-size: 24px;
-}
-.foot {
-  text-align: center;
-  font-family: "Comic Sans MS", cursive;
-  font-size: 9px;
-  color: #F00;
-}
-.button {
-    border: none;
-    color: white;
-    padding: 20px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-    margin: 4px 2px;
-    cursor: pointer;
-    border-radius: 12px;
-  width: 100%;
-}
-.red {background-color: #F00;}
-.green {background-color: #090;}
-.yellow {background-color:#F90;}
-.blue {background-color:#03C;}
-</style>
-<script>
-var websock;
-function start() {
-  websock = new WebSocket('ws://' + window.location.hostname + ':81/');
-  websock.onopen = function(evt) { console.log('websock open'); };
-  websock.onclose = function(evt) { console.log('websock close'); };
-  websock.onerror = function(evt) { console.log(evt); };
-  websock.onmessage = function(evt) {
-    console.log(evt);
-    var e = document.getElementById('ledstatus');
-    if (evt.data === 'ledon') {
-      e.style.color = 'red';
-    }
-    else if (evt.data === 'ledoff') {
-      e.style.color = 'black';
-    }
-    else {
-      console.log('unknown event');
-    }
-  };
-}
-function buttonclick(e) {
-  websock.send(e.id);
-}
-</script>
-</head>
-<body onload="javascript:start();">
-&nbsp;
-<table width="100%" border="1">
-  <tr>
-    <td bgcolor="#FFFF33" id="JD">Quadruped Controller</td>
-  </tr>
-</table>
-<table width="100" height="249" border="0" align="center">
-  <tr>
-    <td>&nbsp;</td>
-    <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 1 1"  type="button" onclick="buttonclick(this);" class="button green">Forward</button> 
-      </label>
-    </form></td>
-    <td>&nbsp;</td>
-  </tr>
-  <tr>
-    <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 3 1"  type="button" onclick="buttonclick(this);" class="button green">Turn_Left</button> 
-      </label>
-    </form></td>
-    <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 0 1"  type="button" onclick="buttonclick(this);" class="button red">Stop_all</button> 
-      </label>
-    </form></td>
-    <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 4 1"  type="button" onclick="buttonclick(this);" class="button green">Turn_Right</button> 
-      </label>
-    </form></td>
-  </tr>
-  <tr>
-    <td>&nbsp;</td>
-    <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 2 1"  type="button" onclick="buttonclick(this);" class="button green">Backward</button> 
-      </label>
-    </form></td>
-    <td>&nbsp;</td>
-  </tr>
-  <tr>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 5 3"  type="button" onclick="buttonclick(this);" class="button yellow">Shake </button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 8 5"  type="button" onclick="buttonclick(this);" class="button blue">Head_up</button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 6 3"  type="button" onclick="buttonclick(this);" class="button yellow">Wave</button> 
-      </label>
-    </form></td>
-  </tr>
-  <tr>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 16"  type="button" onclick="buttonclick(this);" class="button blue">Twist_Left</button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 9 5"  type="button" onclick="buttonclick(this);" class="button blue">Head_down</button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 17"  type="button" onclick="buttonclick(this);" class="button blue">Twist_Right</button> 
-      </label>
-    </form></td>
-  </tr>
-  <tr>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 11 5"  type="button" onclick="buttonclick(this);" class="button blue">Body_left</button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 13"  type="button" onclick="buttonclick(this);" class="button blue">Body_higher</button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 10 5"  type="button" onclick="buttonclick(this);" class="button blue">Body_right</button>
-      </label>
-    </form></td>
-  </tr>
-
-  <tr>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-         <button id="w 12"  type="button" onclick="buttonclick(this);" class="button yellow">Service</button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 14"  type="button" onclick="buttonclick(this);" class="button blue">Body_lower</button> 
-      </label>
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 15"  type="button" onclick="buttonclick(this);" class="button yellow">Reset_Pose</button> 
-      </label>
-    </form></td>
-  </tr>
-  
-    <tr>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 0 0"  type="button" onclick="buttonclick(this);" class="button yellow">Sit</button> 
-      </label>
-    </form></td>
-      <td align="center" valign="middle"><form name="form1" method="post" action="">
-&nbsp;
-    </form></td>
-        <td align="center" valign="middle"><form name="form1" method="post" action="">
-      <label>
-        <button id="w 7 1 "  type="button" onclick="buttonclick(this);" class="button yellow">Dance</button> 
-      </label>
-    </form></td>
-  </tr>
-  
-</table>
-<p class="foot">this application requires Mwilmar Quadruped platform.</p>
-</body>
-</html>
-)rawliteral";
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length)
 {
@@ -269,9 +82,121 @@ void handleNotFound()
   server.send(404, "text/plain", message);
 }
 
+void enableOTA() {
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  // ArduinoOTA.setHostname("myesp8266");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword((const char *)"123");
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+}
+
+int status = WL_IDLE_STATUS;
+int maxQualityId;
+
+bool connectWifi() {
+  Serial.println("Connecting...");
+	int n = WiFi.scanNetworks();
+  maxQualityId = -1;
+  int maxQuality = -1;
+ 	if (n == 0) {
+ 		return false;
+	} else {
+		for (int i = 0; i < n; ++i) {
+		  for (int t = 0; t < MAX_SSID; t++) {
+		    if (WiFi.SSID(i) == String(ssid[t])) {
+    			int quality=0;
+    			if (WiFi.RSSI(i) <= -100) {
+    				quality = 0;
+    			} else {
+    				if (WiFi.RSSI(i) >= -50) {
+    					quality = 100;
+    				} else {
+    					quality = 2 * (WiFi.RSSI(i) + 100);
+    				}
+    			}
+    			if (quality > maxQuality) {
+    			  maxQuality = quality;
+    			  maxQualityId = t;
+    			}
+		    }
+		  }
+		}
+		// try to connect to the max quality known network
+		if (maxQualityId != -1) {
+      Serial.print("Trying ");
+      Serial.print(ssid[maxQualityId]);
+      status = WiFi.begin(ssid[maxQualityId], password[maxQualityId]);
+      int retries = 0;
+      while (((status = WiFi.status()) != WL_CONNECTED) && (retries < 20)) {
+        retries++;
+        delay(1000);
+        Serial.print(".");
+      }
+      if (status != WL_CONNECTED) {
+        Serial.println(" failed");
+        return false;
+      } else {
+        Serial.print(" connected : ");
+        Serial.println(WiFi.localIP());
+        return true;
+      }
+		}
+ 	}
+}
+
+void WiFiEvent(WiFiEvent_t event) {
+    switch(event) {
+      
+      case WIFI_EVENT_STAMODE_DISCONNECTED:
+        Serial.println("WiFi lost connection: reconnecting...");
+        connectWifi();
+        //WiFi.begin();
+        break;
+      case WIFI_EVENT_STAMODE_CONNECTED:
+        Serial.print("Connected to Wifi");
+        break;
+      case WIFI_EVENT_STAMODE_GOT_IP:
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        if (MDNS.begin("esp8266-amg8833")) {
+          Serial.println("MDNS responder started");
+        }
+        enableOTA();
+        break;
+    }
+}
+
 void setup() {
   Serial.begin(115200);
   /* You can remove the password parameter if you want the AP to be open. */
+#if 1
+  WiFi.mode(WIFI_STA);
+  WiFi.onEvent(WiFiEvent);
+  connectWifi();
+  //WiFi.begin(ssid, password);
+#else
   WiFi.softAP(ssid, password);
 
   IPAddress myIP = WiFi.softAPIP();
@@ -279,6 +204,7 @@ void setup() {
     mdns.addService("http", "tcp", 80);
     mdns.addService("ws", "tcp", 81);
   }
+#endif  
   server.on("/", handleRoot);
   server.onNotFound(handleNotFound);
   server.begin();
@@ -288,8 +214,18 @@ void setup() {
 }
 
 void loop() {
-  digitalWrite(LED_BUILTIN, HIGH); 
-  webSocket.loop();
-  quad_loop();
-  server.handleClient();
+  
+  if (WiFi.status() != WL_CONNECTED) {
+    static unsigned long last_ms;
+    unsigned long t = millis();
+    if (t - last_ms > 500) {
+      Serial.print(".");
+      last_ms = t;
+    }
+  } else {
+    ArduinoOTA.handle();
+    server.handleClient();
+    webSocket.loop();
+    quad_loop();
+  }
 }
