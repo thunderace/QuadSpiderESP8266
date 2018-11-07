@@ -13,6 +13,7 @@
 
 #include <Adafruit_PWMServoDriver.h>
 #include <Ticker.h> //to set a timer to manage all servos
+#include "servos.h"
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 Ticker servoTimer;
@@ -22,6 +23,19 @@ Ticker servoTimer;
 //Servo servo[4][3];
 //define servos' ports
 const int servo_pin[4][3] = { {0, 1, 2}, {4, 5, 6}, {8, 9, 10}, {12, 13, 14} };
+const SERVO servos[12] = {  {0,  120, 600, 360},
+                            {1,  120, 600, 360},
+                            {2,  120, 550, 360},
+                            {4,  120, 540, 330},
+                            {5,  120, 560, 340},
+                            {6,  120, 580, 350},
+                            {8,  120, 590, 355},
+                            {9,  120, 580, 350},
+                            {10, 120, 580, 350},
+                            {12, 120, 580, 350},
+                            {13, 200, 540, 370},
+                            {14, 120, 580, 350}};
+
 /* Size of the robot ---------------------------------------------------------*/
 const float length_a = 55;
 const float length_b = 77.5;
@@ -167,8 +181,6 @@ void quad_loop()
     if (lastComm=="RGT"){
       turn_right(1);
     }
-    //Serial.println(lastComm);
-    // turn_right(1); //test
 }
 
 // w 0 2: body init
@@ -1037,35 +1049,71 @@ void cartesian_to_polar(volatile float &alpha, volatile float &beta, volatile fl
   - mathematical model map to fact
   - the errors saved in eeprom will be add
    ---------------------------------------------------------------------------*/
-void polar_to_servo(int leg, float alpha, float beta, float gamma)
-{
-  if (leg == 0) //Front Right
-  {
-    alpha = 85 - alpha - FRElbow; //elbow (- is up)
-    beta = beta + 40 - FRFoot; //foot (- is up)
-    gamma += 115 - FRShdr;    // shoulder (- is left)
+void polar_to_servo(int leg, float alpha, float beta, float gamma) {
+  switch (leg) {
+    case 0: // Front right
+      alpha = 85 - alpha - FRElbow; //elbow (- is up)
+      beta = beta + 40 - FRFoot; //foot (- is up)
+      gamma += 115 - FRShdr;    // shoulder (- is left)
+      break;
+    case 1: // Rear right
+      alpha += 90 + RRElbow; //elbow (+ is up)
+      beta = 115 - beta + RRFoot; //foot (+ is up)
+      gamma = 115 - gamma + RRShdr; // shoulder (+ is left)
+      break;
+    case 2: // Front left
+      alpha += 75 + FLElbow; //elbow (+ is up)
+      beta = 140 - beta + FLFoot; //foot (+ is up)
+      gamma = 115 - gamma + FLShdr;// shoulder (+ is left)
+      break;
+    case 3: // Rear left
+      alpha = 90 - alpha - RLElbow; //elbow (- is up)
+      beta = beta + 50 - RLFoot; //foot; (- is up)
+      gamma += 100 - RLShdr;// shoulder (- is left)
+      break;
+    default:
+      return;
   }
-  else if (leg == 1) //Rear Right
-  {
-    alpha += 90 + RRElbow; //elbow (+ is up)
-    beta = 115 - beta + RRFoot; //foot (+ is up)
-    gamma = 115 - gamma + RRShdr; // shoulder (+ is left)
+
+  int AL = ((850/180)*alpha);
+  
+  if (AL > servos[4 * leg].max /*580 */) {
+    AL = servos[4 * leg].max;
   }
-  else if (leg == 2) //Front Left
-  {
-    alpha += 75 + FLElbow; //elbow (+ is up)
-    beta = 140 - beta + FLFoot; //foot (+ is up)
-    gamma = 115 - gamma + FLShdr;// shoulder (+ is left)
+  if (AL < servos[4 * leg].min /*125*/) { 
+    AL = servos[4 * leg].min;
   }
-  else if (leg == 3) // Rear Left
-  {
-    alpha = 90 - alpha - RLElbow; //elbow (- is up)
-    beta = beta + 50 - RLFoot; //foot; (- is up)
-    gamma += 100 - RLShdr;// shoulder (- is left)
+  pwm.setPWM(servos[4 * leg].pin /*servo_pin[leg][0]*/,0,AL);
+  Serial.print("Servo ");
+  Serial.print(leg);
+  Serial.print(" : ");
+  Serial.println(AL);
+ 
+  int BE = ((850/180)*beta);
+  if (BE > servos[(4 * leg) + 1].max /*580*/) {
+    BE = servos[(4 * leg) + 1].max;
   }
-  int AL = ((850/180)*alpha);if (AL > 580) AL=580;if (AL < 125) AL=125;pwm.setPWM(servo_pin[leg][0],0,AL);
-  int BE = ((850/180)*beta);if (BE > 580) BE=580;if (BE < 125) BE=125;pwm.setPWM(servo_pin[leg][1],0,BE);
-  int GA = ((580/180)*gamma);if (GA > 580) GA=580;if (GA < 125) GA=125;pwm.setPWM(servo_pin[leg][2],0,GA);
+  if (BE < servos[(4 * leg) + 1].min /*125*/) {
+    BE = servos[(4 * leg) + 1].min;
+  }
+  pwm.setPWM(servos[(4 * leg) + 1].pin /*servo_pin[leg][1]*/,0,BE);
+  Serial.print("Servo ");
+  Serial.print(leg + 1);
+  Serial.print(" : ");
+  Serial.println(BE);
+  
+  int GA = ((580/180)*gamma);
+  if (GA > servos[(4 * leg) + 2].max /*580*/) { 
+    GA = servos[(4 * leg) + 2].max;
+  }
+  if (GA < servos[(4 * leg) + 2].min) {
+    GA = servos[(4 * leg) + 2].min;
+  }
+  pwm.setPWM(servos[(4 * leg) + 2].pin,0,GA);
+  Serial.print("Servo ");
+  Serial.print(leg + 2);
+  Serial.print(" : ");
+  Serial.println(GA);
 }
 
 

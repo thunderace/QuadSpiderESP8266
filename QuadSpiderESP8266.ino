@@ -15,13 +15,10 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <Hash.h>
-#include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
 #include "QuadSpiderAction.h"
 #include "html.h"
 
-const int led = 13;
-MDNSResponder mdns;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 #if MAX_SSID == 1
@@ -121,6 +118,10 @@ void enableOTA() {
   ArduinoOTA.begin();
 }
 
+void fallbackToAP() {
+    WiFi.softAP("Spider");
+}
+
 int status = WL_IDLE_STATUS;
 int maxQualityId;
 bool connectWifi() {
@@ -129,6 +130,7 @@ bool connectWifi() {
   maxQualityId = -1;
   int maxQuality = -1;
  	if (n == 0) {
+    fallbackToAP();
  		return false;
 	} else {
 		for (int i = 0; i < n; ++i) {
@@ -153,8 +155,8 @@ bool connectWifi() {
 		}
 		// try to connect to the max quality known network
 		if (maxQualityId != -1) {
-      Serial.print("Trying ");
-      Serial.print(ssid[maxQualityId]);
+			Serial.print("Trying ");
+			Serial.print(ssid[maxQualityId]);
       status = WiFi.begin(ssid[maxQualityId], password[maxQualityId]);
       int retries = 0;
       while (((status = WiFi.status()) != WL_CONNECTED) && (retries < 20)) {
@@ -164,6 +166,7 @@ bool connectWifi() {
       }
       if (status != WL_CONNECTED) {
         Serial.println(" failed");
+        fallbackToAP();
         return false;
       } else {
         return true;
@@ -172,44 +175,32 @@ bool connectWifi() {
  	}
 }
 
-void WiFiEvent(WiFiEvent_t event) {
-    switch(event) {
-      case WIFI_EVENT_STAMODE_DISCONNECTED:
-        Serial.println("WiFi lost connection: reconnecting...");
-        connectWifi();
-        //WiFi.begin();
-        break;
-      case WIFI_EVENT_STAMODE_CONNECTED:
-        Serial.print("Connected to Wifi");
-        break;
-      case WIFI_EVENT_STAMODE_GOT_IP:
-        Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());
-        if (MDNS.begin("esp8266-amg8833")) {
-          Serial.println("MDNS responder started");
-        }
-        enableOTA();
-        break;
-    }
+WiFiEventHandler stationConnectedHandler;
+WiFiEventHandler stationDisconnectedHandler;
+
+void onStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
+  Serial.print("Station connected ");
+}
+
+void onStationDisconnected(const WiFiEventSoftAPModeStationDisconnected& evt) {
+  Serial.print("Station disconnected: ");
+  connectWifi();
 }
 
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
-  WiFi.onEvent(WiFiEvent);
+  stationConnectedHandler = WiFi.onSoftAPModeStationConnected(&onStationConnected);
+  stationDisconnectedHandler = WiFi.onSoftAPModeStationDisconnected(&onStationDisconnected);
   connectWifi();
   setupWebServer();
   quad_setup();
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) {
-    connectWifi();
-  } else {
-    if (command != "") {
-      quad_action_cmd((unsigned char *)command.c_str());
-      command = "";
-    }
-    quad_loop();
+  if (command != "") {
+    quad_action_cmd((unsigned char *)command.c_str());
+    command = "";
   }
+  quad_loop();
 }
