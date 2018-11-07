@@ -1,9 +1,19 @@
+/* -----------------------------------------------------------------------------
+  - Original Project: Body Movement Crawling robot
+  - Original Author:  panerqiang@sunfounder.com
+  - Date:  2015/1/27
+
+  - Remix Project by Wilmar
+  - Date: 2018/09/25
+
+  - Remix Project by thunderace (for ESP8266 only)
+  - Date 2018/10/10
+
+/* Includes ------------------------------------------------------------------*/
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h> 
-//#include <ESP8266WebServer.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-//#include <WebSocketsServer.h>
 #include <Hash.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
@@ -12,10 +22,6 @@
 
 const int led = 13;
 MDNSResponder mdns;
-/*
-ESP8266WebServer server(80);
-WebSocketsServer webSocket = WebSocketsServer(81);
-*/
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 #if MAX_SSID == 1
@@ -35,6 +41,7 @@ const char *password[MAX_SSID] = { _WIFI_PASSWORD1_, _WIFI_PASSWORD2_, _WIFI_PAS
 
 //=================================================================================
 
+String command = "";
 void ICACHE_FLASH_ATTR onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
   if (type == WS_EVT_ERROR) {
     Serial.printf("[ WARN ] WebSocket[%s][%u] error(%u): %s\r\n", server->url(), client->id(), *((uint16_t*)arg), (char*)data);
@@ -49,7 +56,12 @@ void ICACHE_FLASH_ATTR onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient *
         for(size_t i=0; i < info->len; i++) {
           msg += (char) data[i];
         }
-        Serial.println(msg);
+        if (command == "") { // ignore command if last one is not terminated
+          Serial.println(msg);
+          command = msg;
+        } else {
+          Serial.println("Last command not yet terminated : ignore this one!");
+        }
       } else {
         char buff[3];
         for(size_t i=0; i < info->len; i++) {
@@ -79,36 +91,6 @@ void ICACHE_FLASH_ATTR setupWebServer() {
   server.begin();
 }
 
-/*
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length)
-{
-  //Serial.printf("webSocketEvent(%d, %d, ...)\r\n", num, type);
-  switch(type) {
-    case WStype_DISCONNECTED:
-      //Serial.printf("[%u] Disconnected!\r\n", num);
-      break;
-    case WStype_CONNECTED:
-      {
-        IPAddress ip = webSocket.remoteIP(num);
-      }
-      break;
-    case WStype_TEXT:
-      Serial.printf("%s\r\n", payload);
-      quad_action_cmd(payload);
-      digitalWrite(LED_BUILTIN, LOW);
-      // send data to all connected clients
-      webSocket.broadcastTXT(payload, length);
-      break;
-    case WStype_BIN:
-      hexdump(payload, length);
-      // echo data back to browser
-      webSocket.sendBIN(num, payload, length);
-      break;
-      default:
-      break;
-  }
-}
-*/
 void enableOTA() {
   // Port defaults to 8266
   // ArduinoOTA.setPort(8266);
@@ -141,7 +123,6 @@ void enableOTA() {
 
 int status = WL_IDLE_STATUS;
 int maxQualityId;
-
 bool connectWifi() {
   Serial.println("Connecting...");
 	int n = WiFi.scanNetworks();
@@ -193,7 +174,6 @@ bool connectWifi() {
 
 void WiFiEvent(WiFiEvent_t event) {
     switch(event) {
-      
       case WIFI_EVENT_STAMODE_DISCONNECTED:
         Serial.println("WiFi lost connection: reconnecting...");
         connectWifi();
@@ -215,43 +195,21 @@ void WiFiEvent(WiFiEvent_t event) {
 
 void setup() {
   Serial.begin(115200);
-  /* You can remove the password parameter if you want the AP to be open. */
-#if 1
   WiFi.mode(WIFI_STA);
   WiFi.onEvent(WiFiEvent);
   connectWifi();
-  //WiFi.begin(ssid, password);
-#else
-  WiFi.softAP(ssid, password);
-
-  IPAddress myIP = WiFi.softAPIP();
-  if (mdns.begin("espWebSock", WiFi.localIP())) {
-    mdns.addService("http", "tcp", 80);
-    mdns.addService("ws", "tcp", 81);
-  }
-#endif  
   setupWebServer();
-/*
-  server.begin();
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
-*/  
-  //quad_setup();
+  quad_setup();
 }
 
 void loop() {
-  
   if (WiFi.status() != WL_CONNECTED) {
-    static unsigned long last_ms;
-    unsigned long t = millis();
-    if (t - last_ms > 500) {
-      Serial.print(".");
-      last_ms = t;
-    }
+    connectWifi();
   } else {
-    ArduinoOTA.handle();
-    //server.handleClient();
-    //webSocket.loop();
-    //quad_loop();
+    if (command != "") {
+      quad_action_cmd((unsigned char *)command.c_str());
+      command = "";
+    }
+    quad_loop();
   }
 }

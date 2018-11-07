@@ -5,27 +5,9 @@
 
   - Remix Project by Wilmar
   - Date: 2018/09/25
-  - Change log: 
-      > Add more movement and combine demo and controlled move in one
-      > Using PCA9685 16 channel Servo controller for Arduino for motor driver
-      > Add NodeMCU for Wifi Controller as AP
-   -----------------------------------------------------------------------------
-  - Overview
-  - This project was written for the Crawling robot desigened by Sunfounder.
-    This version of the robot has 4 legs, and each leg is driven by 3 servos.
-  This robot is driven by a Ardunio Nano Board with an expansion Board.
-  We recommend that you view the product documentation before using.
-  - Request
-  - This project requires some library files, which you can find in the head of
-    this file. Make sure you have installed these files.
-  - How to
-  - Before use,you must to adjust the robot,in order to make it more accurate.
-    - Adjustment operation
-    1.uncomment ADJUST, make and run
-    2.comment ADJUST, uncomment VERIFY
-    3.measure real sites and set to real_site[4][3], make and run
-    4.comment VERIFY, make and run
-  The document describes in detail how to operate.
+
+  - Remix Project by thunderace (for ESP8266 only)
+  - Date 2018/10/10
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -80,7 +62,6 @@ const float turn_y0 = temp_b * sin(temp_alpha) - turn_y1 - length_side;
 /* ---------------------------------------------------------------------------*/
 boolean Demo_mode=true;
 String lastComm="";
-int ledPulse =0;
 
 int FRFoot = 0;
 int FRElbow = 0;
@@ -130,13 +111,8 @@ void quad_setup()
 {
   Serial.println("Robot starts initialization");
   
-  pinMode(LED_BUILTIN, OUTPUT);
   pwm.begin();
   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
-  //SCmd.addCommand("w", action_cmd);
-
-  //SCmd.setDefaultHandler(unrecognized);
-
   //initialize default parameter
   set_site(0, x_default - x_offset, y_start + y_step, z_boot);
   set_site(1, x_default - x_offset, y_start + y_step, z_boot);
@@ -154,11 +130,11 @@ void quad_setup()
   servoTimer.attach_ms(20, servo_service);
   Serial.println("Servo service started");
   //initialize servos
- // servo_attach();
+  //servo_attach();
   Serial.println("Servos initialized");
   sit();
-  b_init();
   Serial.println("Robot initialization Complete");
+  //b_init();
 }
 
 
@@ -178,19 +154,6 @@ void setServoPulse(uint8_t n, double pulse) {
    ---------------------------------------------------------------------------*/
 void quad_loop()
 {
-  //-----------led blink status
-    if (ledPulse <= 500){
-      digitalWrite(LED_BUILTIN, LOW); 
-    }
-    if (ledPulse > 1000){
-      digitalWrite(LED_BUILTIN, HIGH); 
-    }
-    if (ledPulse >= 1500){
-      ledPulse = 0;
-    }
-    ledPulse++;
-  //-------------------
-    
     //SCmd.readSerial();
     if (lastComm=="FWD"){
       step_forward(1);
@@ -204,7 +167,7 @@ void quad_loop()
     if (lastComm=="RGT"){
       turn_right(1);
     }
-    Serial.println(lastComm);
+    //Serial.println(lastComm);
     // turn_right(1); //test
 }
 
@@ -248,16 +211,34 @@ void quad_loop()
 #define W_TW_R         16
 #define W_TW_L         17
 
+String getValue(String data, char separator, int index)
+{
+    int found = 0;
+    int strIndex[] = { 0, -1 };
+    int maxIndex = data.length() - 1;
+
+    for (int i = 0; i <= maxIndex && found <= index; i++) {
+        if (data.charAt(i) == separator || i == maxIndex) {
+            found++;
+            strIndex[0] = strIndex[1] + 1;
+            strIndex[1] = (i == maxIndex) ? i+1 : i;
+        }
+    }
+    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
 void quad_action_cmd(unsigned char *command)
 {
-  int action_mode, n_step;
+  int action_mode = -1;
+  int n_step;
   if (command[0] != 'w') {
     return;
   }
   Serial.println("Action:");
-  strtok((char *)command, (const char *)' '); // skip w
-  action_mode = atoi(strtok(NULL, (const char *)' '));
-  n_step = atoi(strtok(NULL, (const char *)' '));
+  String in = (const char *)command;
+  action_mode = getValue(in, ' ', 1).toInt();;
+  Serial.println(action_mode);
+  n_step = getValue(in, ' ', 2).toInt();
   Demo_mode=false;
 
   switch (action_mode)
@@ -956,7 +937,7 @@ void body_dance(int i)
    ---------------------------------------------------------------------------*/
 void servo_service(void)
 {
-  sei();
+  //sei();
   static float alpha, beta, gamma;
 
   for (int i = 0; i < 4; i++)
@@ -1012,11 +993,13 @@ void set_site(int leg, float x, float y, float z)
    ---------------------------------------------------------------------------*/
 void wait_reach(int leg)
 {
-  while (1)
+  while (1) {
+    yield();  
     if (site_now[leg][0] == site_expect[leg][0])
       if (site_now[leg][1] == site_expect[leg][1])
         if (site_now[leg][2] == site_expect[leg][2])
           break;
+  }
 }
 
 /*

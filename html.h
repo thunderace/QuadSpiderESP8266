@@ -25,7 +25,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 .button {
     border: none;
     color: white;
-    padding: 20px;
+    padding: 10px;
     text-align: center;
     text-decoration: none;
     display: inline-block;
@@ -203,7 +203,6 @@ function buttonclick(e) {
   </tr>
   
 </table>
-<p class="foot">this application requires Mwilmar Quadruped platform.</p>
 </body>
 </html>
 )rawliteral";
